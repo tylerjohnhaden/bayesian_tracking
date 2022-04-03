@@ -12,8 +12,8 @@ import cv2
 import numpy as np
 
 ball_hsv_thresholds = {
-    #'Purple': {'lower': (113, 35, 40), 'upper': (145, 160, 240)},
-    'Blue': {'lower': (95, 150, 80), 'upper': (100, 255, 250)},
+    'Purple': {'lower': (113, 35, 40), 'upper': (145, 160, 240)},
+    #'Blue': {'lower': (95, 150, 80), 'upper': (100, 255, 250)},
     #'Green': {'lower': (43, 60, 40), 'upper': (71, 240, 200)},
     #'Yellow': {'lower': (19, 60, 100), 'upper': (23, 255, 255)},
     #'Orange': {'lower': (11, 150, 100), 'upper': (16, 255, 250)},
@@ -36,7 +36,7 @@ class BallDetector:
         self.bridge = CvBridge()
 
         self.ball_image_pub = rospy.Publisher('/ball_image', Image, queue_size=5)
-        self.ball_cov_pubs = {c: rospy.Publisher('/ball_cov/' + c, PoseWithCovarianceStamped, queue_size=5) for c in
+        self.ball_cov_pubs = {c: rospy.Publisher('/ballxyz/' + c, PoseWithCovarianceStamped, queue_size=5) for c in
                                  ball_hsv_thresholds.keys()}
         self.ball_marker_pubs = {c: rospy.Publisher('/ball_marker/' + c, Marker, queue_size=5) for c in
                                  ball_hsv_thresholds.keys()}
