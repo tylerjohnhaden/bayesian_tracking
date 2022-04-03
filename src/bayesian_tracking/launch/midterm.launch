@@ -1,0 +1,12 @@
+<launch>
+
+    <include file="$(find realsense2_camera)/launch/rs_camera.launch">
+        <arg name="align_depth" value="true"/>
+    </include>
+
+    <node name="detect_ball" pkg="bayesian_tracking" type="detect_ball.py" output="screen"/>
+
+    <node name="ball_ekf" pkg="bayesian_tracking" type="EKF.py" output="screen"/>
+
+</launch>
+
