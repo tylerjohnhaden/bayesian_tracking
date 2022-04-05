@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import numpy as np
 import rospy
 from geometry_msgs.msg import PoseWithCovarianceStamped
@@ -5,19 +7,20 @@ from tf.transformations import quaternion_from_euler
 
 
 class EKF():
-    def __init__(self, nk, dt, X, U, color='Purple'):
+    def __init__(self, nk, dt, X, U, color='Blue'):
         self.nk = nk
         self.dt = dt
         self.X = X
         self.U = U
         self.A = np.identity(3)
         self.C = np.identity(3)
+        self.x_km2_km1 = np.zeros(3)
 
         self.Sigma_init = np.array(
             [[0.05, 0, 0], [0, 0.05, 0], [0, 0, 0.1]])  # <--------<< Initialize correction covariance
         self.sigma_measure = np.array([[0.05, 0, 0], [0, 0.05, 0],
                                        [0, 0, 0.1]])  # <--------<< Should be updated with variance from the measurement
-        self.sigma_motion = np.array([[0.05, 0, 0], [0, 0.05, 0], [0, 0, 0.1]])
+        self.sigma_motion = np.array([[0.1, 0, 0], [0, 0.1, 0], [0, 0, 0.1]])
         self.KalGain = np.random.rand(3, 3)  # <--------<< Initialize Kalman Gain
 
         self.z_k = None
@@ -33,11 +36,23 @@ class EKF():
 
         self.belief_pub = rospy.Publisher('/ball_belief', PoseWithCovarianceStamped, queue_size=5)
 
-    def prediction(self, x_km1_km1, Sigma_km1_km1):
-        x_mean_k_km1, x_mean_kpn_km1 = self.dotX(x_km1_km1)
+    def prediction(self, x_km1_km1, Sigma_km1_km1):  ## Initial State is input
+        
+        x_mean_k_km1, x_mean_kpn_km1 = self.dotX(x_km1_km1) ## k_km1 becomes predicted step
         # TODO: display x_mean_kpn_km1 as future prediction
 
+        # Defining A utilizing Jacobian... A = (I+Jacobian)
+        Jacobian = [
+            [x_km1_km1[0]-self.x_km2_km1[0], 0, 0],
+            [0, x_km1_km1[1]-self.x_km2_km1[1], 0],
+            [-1*np.sin(x_km1_km1[2]-self.x_km2_km1[2]),np.cos(x_km1_km1[2]-self.x_km2_km1[2]),x_km1_km1[2]-self.x_km2_km1[2]]
+        ]
+        Jacobian = np.divide(Jacobian, self.dt)
+        self.A = np.add(np.identity(3),Jacobian)
+
         Sigma_k_km1 = np.matmul(self.A, Sigma_km1_km1, self.A.T) + self.sigma_motion
+
+        self.x_km2_km1 = x_km1_km1
 
         return x_mean_k_km1, Sigma_k_km1
 
@@ -60,6 +75,9 @@ class EKF():
         x_mean_k_km1, Sx_k_km1 = self.prediction(self.X, self.Sx_k_k)
         kalman_gain = self.compute_gain(Sx_k_km1)
         self.X, self.Sx_k_k = self.correction(x_mean_k_km1, Sx_k_km1, kalman_gain)
+        
+        print(self.X, self.Sx_k_k)
+        self.publish_ball_belief()
 
     def dotX(self, x):
         x_dot = np.asarray([
@@ -71,7 +89,11 @@ class EKF():
         return (x + x_dot), (x + self.nk * x_dot)
 
     def measurement_cb(self, pwcs):
-        theta = np.arctan2(pwcs.pose.pose.position.y - self.z_k[1], pwcs.pose.pose.position.x - self.z_k[0])
+        if self.z_k is None:
+            theta = 0
+        else:
+            theta = np.arctan2(pwcs.pose.pose.position.y - self.z_k[1], pwcs.pose.pose.position.x - self.z_k[0])
+        
         self.z_k = np.asarray([pwcs.pose.pose.position.x, pwcs.pose.pose.position.y, theta])
 
         self.sigma_measure = np.asarray([
@@ -81,18 +103,22 @@ class EKF():
         ])
 
         self.z_height_k = pwcs.pose.pose.position.z
-        self.z_height_variance = pwcs.pose.covariance[14]
+        self.z_height_variance = min(pwcs.pose.covariance[14], 1)
 
     def publish_ball_belief(self):
         pwcs = PoseWithCovarianceStamped()
         pwcs.header.stamp = rospy.get_rostime()
         pwcs.header.frame_id = 'camera_link'
 
-        pwcs.pose.pose.orientation = quaternion_from_euler(0, 0, self.X[2])
+        x, y, z, w = quaternion_from_euler(0, 0, self.X[2])
+        pwcs.pose.pose.orientation.x = x
+        pwcs.pose.pose.orientation.y = y
+        pwcs.pose.pose.orientation.z = z
+        pwcs.pose.pose.orientation.w = w
 
         pwcs.pose.pose.position.x = self.X[0]
         pwcs.pose.pose.position.y = self.X[1]
-        pwcs.pose.pose.position.y = self.z_height_k
+        pwcs.pose.pose.position.z = self.z_height_k
 
         pwcs.pose.covariance = [
             self.Sx_k_k[0, 0], 0, 0, 0, 0, 0,
