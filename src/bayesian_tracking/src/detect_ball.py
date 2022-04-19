@@ -11,10 +11,11 @@ from cv_bridge import CvBridge, CvBridgeError
 from tf.transformations import euler_from_quaternion, quaternion_from_euler
 import cv2
 import numpy as np
+import json
 
 ball_hsv_thresholds = {
     #'Purple': {'lower': (113, 35, 40), 'upper': (145, 160, 240)},
-     'Blue': {'lower': (95, 150, 80), 'upper': (100, 255, 250)},
+    'Blue': {'lower': (95, 150, 80), 'upper': (100, 255, 250)},
     # 'Green': {'lower': (43, 60, 40), 'upper': (71, 240, 200)},
     # 'Yellow': {'lower': (19, 60, 100), 'upper': (23, 255, 255)},
     # 'Orange': {'lower': (11, 150, 100), 'upper': (16, 255, 250)},
@@ -58,6 +59,7 @@ class BallDetector:
         self.height, self.width = None, None  # pixels
         self.horizontal_half_angle = 0.436332  # radians
         self.vertical_half_angle = 0.375246  # radians
+        
 
     def run(self):
         dt = 1
